@@ -4,70 +4,69 @@
 name: Node.js CD
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    push:
+        branches: ['main']
+    pull_request:
+        branches: ['main']
 
 jobs:
-  build:
+    build:
+        runs-on: ubuntu-latest
 
-    runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                node-version: [16.x]
+                # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
-    strategy:
-      matrix:
-        node-version: [16.x]
-        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+        steps:
+            - uses: actions/checkout@v3
+            - name: Use Node.js ${{ matrix.node-version }}
+              uses: actions/setup-node@v3
+              with:
+                  node-version: ${{ matrix.node-version }}
+                  cache: 'npm'
 
-    steps:
-    - uses: actions/checkout@v3
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v3
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
+            - name: Install Dependencies
+              run: npm ci
 
-    - name: Install Dependencies
-      run: npm ci
-      
-    - name: build
-      run: npm run build --if-present
+            - name: build
+              run: npm run build --if-present
 
-    - name: create dotenv
-      run: |
-        touch ./monorepo/.env
-        echo "PORT=${{ secrets.PORT }}"
-        echo "DEV_HOST=${{ secrets.DEV_HOST }}"
-        echo "DEV_NAME=${{ secrets.DEV_NAME }}"
-        echo "DEV_USER=${{ secrets.DEV_USER }}"
-        echo "DEV_PASSWORD=${{ secrets.DEV_PASSWORD }}"
-        echo "REDIS_HOST=${{ secrets.REDIS_HOST }}"
-        echo "REDIS_USER=${{ secrets.REDIS_USER }}"
-        echo "REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}"
+            - name: create dotenv
+              run: |
+                  touch ./monorepo/.env
+                  echo "PORT=${{ secrets.PORT }}"
+                  echo "DEV_HOST=${{ secrets.DEV_HOST }}"
+                  echo "DEV_NAME=${{ secrets.DEV_NAME }}"
+                  echo "DEV_USER=${{ secrets.DEV_USER }}"
+                  echo "DEV_PASSWORD=${{ secrets.DEV_PASSWORD }}"
+                  echo "REDIS_HOST=${{ secrets.REDIS_HOST }}"
+                  echo "REDIS_USER=${{ secrets.REDIS_USER }}"
+                  echo "REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}"
 
-    - name: Generate deployment package
-      run: zip -r deploy.zip . -x '*.git*'
+            - name: Generate deployment package
+              run: zip -r deploy.zip . -x '*.git*'
 
-    - name: Get timestamp
-      uses: gerred/actions/current-time@master
-      id: current-time
+            - name: Get timestamp
+              uses: gerred/actions/current-time@master
+              id: current-time
 
-    - name: Run string replace
-      uses: frabert/replace-string-action@master
-      id: format-time
-      with:
-        pattern: '[:\.]+'
-        string: "${{ steps.current-time.outputs.time }}"
-        replace-with: '-'
-        flags: 'g'
+            - name: Run string replace
+              uses: frabert/replace-string-action@master
+              id: format-time
+              with:
+                  pattern: '[:\.]+'
+                  string: '${{ steps.current-time.outputs.time }}'
+                  replace-with: '-'
+                  flags: 'g'
 
-    - name: Deploy to EB
-      uses: einaregilsson/beanstalk-deploy@v16
-      with:
-        aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        application_name: great-app
-        environment_name: Greatapp-env
-        version_label: "great-${{ steps.format-time.outputs.replaced }}"
-        region: ap-northeast-2
-        deployment_package: deploy.zip
+            - name: Deploy to EB
+              uses: einaregilsson/beanstalk-deploy@v16
+              with:
+                  aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  application_name: great-app
+                  environment_name: Greatapp-env
+                  version_label: 'great-${{ steps.format-time.outputs.replaced }}'
+                  region: ap-northeast-2
+                  deployment_package: deploy.zip
