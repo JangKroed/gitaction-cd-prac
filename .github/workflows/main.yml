@@ -41,12 +41,6 @@ jobs:
                   echo "REDIS_USER=${{ secrets.REDIS_USER }}"
                   echo "REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}"
 
-            - name: start
-              run: | 
-                echo ${{ secrets.DEV_USER }}
-                echo $DEV_USER
-                npm start
-
             - name: Generate deployment package
               run: zip -r deploy.zip . -x '*.git*'
 
