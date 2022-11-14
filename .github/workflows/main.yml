@@ -26,22 +26,29 @@ jobs:
     - run: npm ci
     - run: npm run build --if-present
 
-    - name: zip file
-      run: zip -r hous.zip . -x '*.git*'
+    - name: Generate deployment package
+      run: zip -r deploy.zip . -x '*.git*'
 
-    - name: AWS configure credentials
-      uses: aws-actions/configure-aws-credentials@v1
+    - name: Get timestamp
+      uses: gerred/actions/current-time@master
+      id: current-time
+
+    - name: Run string replace
+      uses: frabert/replace-string-action@master
+      id: format-time
+      with:
+        pattern: '[:\.]+'
+        string: "${{ steps.current-time.outputs.time }}"
+        replace-with: '-'
+        flags: 'g'
+
+    - name: Deploy to EB
+      uses: einaregilsson/beanstalk-deploy@v16
       with:
         aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ap-northeast-2
-
-    - name: upload to S3
-      run: aws s3 cp --region ap-northeast-2 ./hous.zip s3://greatgreat/deploy/
-
-    - name: deploy with AWS codeDeploy
-      run: aws deploy create-deployment
-        --application-name great-app
-        --deployment-config-name CodeDeployDefault.AllAtOnce
-        --deployment-group-name great-group
-        --s3-location bucket=great,bundleType=zip,key=deploy/hous.zip
+        application_name: great-app
+        environment_name: Greatapp-env
+        version_label: "great-${{ steps.format-time.outputs.replaced }}"
+        region: ap-northeast-2
+        deployment_package: deploy.zip
