@@ -1,69 +1,47 @@
-# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
-# For more information see: https://help.github.com/actions/language-and-framework-guides/using-nodejs-with-github-actions
-
-name: Node.js CD
+name: Node.js CI
 
 on:
-    push:
-        branches: ['main']
-    pull_request:
-        branches: ['main']
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
-    build:
-        runs-on: ubuntu-latest
+  build:
 
-        strategy:
-            matrix:
-                node-version: [16.x]
-                # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+    runs-on: ubuntu-latest
 
-        steps:
-            - uses: actions/checkout@v3
-            - name: Use Node.js ${{ matrix.node-version }}
-              uses: actions/setup-node@v3
-              with:
-                  node-version: ${{ matrix.node-version }}
-                  cache: 'npm'
+    strategy:
+      matrix:
+        node-version: [16.x]
+        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
-            - name: Install Dependencies
-              run: npm ci
+    steps:
+    - uses: actions/checkout@v3
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+    - run: npm ci
+    - run: npm run build --if-present
 
-            - name: create dotenv
-              run: |
-                  touch ./.env
-                  echo "PORT=${{ secrets.PORT }}"
-                  echo "DEV_HOST=${{ secrets.DEV_HOST }}"
-                  echo "DEV_NAME=${{ secrets.DEV_NAME }}"
-                  echo "DEV_USER=${{ secrets.DEV_USER }}"
-                  echo "DEV_PASSWORD=${{ secrets.DEV_PASSWORD }}"
-                  echo "REDIS_HOST=${{ secrets.REDIS_HOST }}"
-                  echo "REDIS_USER=${{ secrets.REDIS_USER }}"
-                  echo "REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}"
+    - name: zip file
+      run: zip -r deploy.zip . -x '*.git*'
 
-            - name: Generate deployment package
-              run: zip -r deploy.zip . -x '*.git*'
+    - name: AWS configure credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ap-northeast-2
 
-            - name: Get timestamp
-              uses: gerred/actions/current-time@master
-              id: current-time
+    - name: upload to S3
+      run: aws s3 cp --region ap-northeast-2 ./hous.zip s3://great/deploy/
 
-            - name: Run string replace
-              uses: frabert/replace-string-action@master
-              id: format-time
-              with:
-                  pattern: '[:\.]+'
-                  string: '${{ steps.current-time.outputs.time }}'
-                  replace-with: '-'
-                  flags: 'g'
-
-            - name: Deploy to EB
-              uses: einaregilsson/beanstalk-deploy@v16
-              with:
-                  aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                  aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                  application_name: great-app
-                  environment_name: Greatapp-env
-                  version_label: 'great-${{ steps.format-time.outputs.replaced }}'
-                  region: ap-northeast-2
-                  deployment_package: deploy.zip
+    - name: deploy with AWS codeDeploy
+      run: aws deploy create-deployment
+        --application-name great-app
+        --deployment-config-name CodeDeployDefault.AllAtOnce
+        --deployment-group-name great-group
+        --s3-location bucket=great,bundleType=zip,key=deploy/hous.zip
