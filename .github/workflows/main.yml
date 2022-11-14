@@ -34,7 +34,7 @@ jobs:
 
             - name: create dotenv
               run: |
-                  touch ./monorepo/.env
+                  touch ./.env
                   echo "PORT=${{ secrets.PORT }}"
                   echo "DEV_HOST=${{ secrets.DEV_HOST }}"
                   echo "DEV_NAME=${{ secrets.DEV_NAME }}"
